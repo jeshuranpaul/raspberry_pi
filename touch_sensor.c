@@ -1,7 +1,7 @@
 #include <u.h>
 #include <libc.h>
 
-int getValue(int, int);
+int checkOnOff(int, int);
 
 void main() {
 	int fd;
@@ -10,8 +10,7 @@ void main() {
 	led_pin = 24,
 	touch_count = 0;
 	
-	int prev_val, curr_val;
-	vlong value;
+	int prev_state, curr_state;
 
 	bind("#G", "/dev", MAFTER); 	//MAFTER does the -a part in the echo command
 	fd = open("/dev/gpio", ORDWR);
@@ -19,12 +18,12 @@ void main() {
 	fprint(fd, "function %d out \n", led_pin);
 	fprint(fd, "set %d 0 \n", led_pin);
 
-	prev_val = getValue(fd, out_pin);
+	prev_state = checkOnOff(fd, out_pin);
 
 	while(1)  {
-		curr_val = getValue(fd, out_pin);
+		curr_state = checkOnOff(fd, out_pin);
 		
-		if(prev_val != curr_val) 
+		if(prev_state != curr_state) 
 			touch_count++;
 
 		switch(touch_count % 3) {
@@ -44,22 +43,19 @@ void main() {
 				break;
 		}
 
-		prev_val = curr_val;
+		prev_state = curr_state;
 	}
 }
 
-int getValue(int fd, int out_pin) {
+int checkOnOff(int fd, int out_pin) {
 	char buff[16];
-	vlong value;
-	int out_val, out_bit_val;
-
-	int shift_factor = out_pin / 4, 
-	shift = shift_factor * 4;
+	vlong value, out_val;
 
 	read(fd, buff, 16);
 	buff[16] = 0;
 	value = strtoull(buff, nil, 16);
 	out_val = value & (1 << out_pin);
-	out_bit_val = out_val >> shift;
-	return out_bit_val;
+	
+	if(out_val == 0) return 0;
+	else return 1;
 }
