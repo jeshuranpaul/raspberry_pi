@@ -1,0 +1,33 @@
+Lecture 2 notes:
+
+/mnt/term -- used for viewing local files.. whats it for Windows??
+SoCs -- system on chips
+Generally, instructions operates on registers, not on memory locations
+data sheet for the chip - https://www.raspberrypi.org/documentation/hardware/raspberrypi/bcm2835/BCM2835-ARM-Peripherals.pdf - View Chapter 6 (GPIO)
+check errata too for different things the gpio can do - https://elinux.org/BCM2835_datasheet_errata 
+direct link -- https://elinux.org/RPi_BCM2835_GPIOs
+RS 232 - Truly universal
+
+--adding GPIO directory into the /dev directory (/dev/drivers)
+> bind -a '#G'/dev 
+
+> dd -if /dev/gpio -bs 16 -count 1   -- shows values of pin in hex (16 digits, right to left, for example pin 27 is 7th bit from the right, ignore 1+0 at the end)
+
+gpio is implented in sys/src/9/bcm/devgpio.c
+> man gpio
+
+if i want to make pin 27 as out, then justt write to gpio file
+echo function 27 out > /dev/gpio
+
+for setting pin 27 to 1
+> echo set 27 1 > /dev/gpio
+
+
+C compiler to use - 5c
+> 5c filename.c
+
+For linking
+> 5l -o exe_filename filename.5
+
+Running executable
+> exe_filename
