@@ -57,10 +57,24 @@ static long ledread(Chan* c, void* buf, long n, vlong v) {
 
 }
 
+static int checkOnOff(void) {
+	char lbuf[20];
+	char *e;
+	e = lbuf + sizeof(lbuf);
+	seprint(lbuf, e, "%08ulx%08ulx", ((ulong *)GPLEV)[1], ((ulong *)GPLEV)[0]);
+			
+	vlong value, out_val;
+	value = strtoull(lbuf, nil, 16);
+ 	out_val = value & (1 << OUT_GPIO_PIN);
+	
+	if(out_val == 0) return 0;
+	else			return 1;
+}
+
 static long ledwrite(Chan *c, void *buff, long n, vlong v) {
 	Cmdbuf *cb;
 	Cmdtab *ct;
-	
+	int prev_state, curr_state, touch_count = 0;
 	cb = parsecmd(buff, n);
 	if(waserror()) {
 		free(cb);
@@ -77,35 +91,39 @@ static long ledwrite(Chan *c, void *buff, long n, vlong v) {
 		state = 1;
 		gpioout(LED_GPIO_PIN, 0);
 
-		vlong lev0 = ((vlong *)GPLEV)[0],
-		lev1 = ((vlong *)GPLEV)[1],
-		out_val;
-		
-		print("%08x%08x \n", lev1, lev0);
+		//out_val = lev1 & (1 << OUT_GPIO_PIN);
+		//print("Out val for >= 30: %x \n", out_val);
 
-		char lbuf[20];
-		char *e;
-		e = lbuf + sizeof(lbuf);
-		seprint(lbuf, e, "%08ulx%08ulx", ((ulong *)GPLEV)[1], ((ulong *)GPLEV)[0]);
-
-		print("lbuf : %s", lbuf);
-			
-
-		out_val = lev0 & (1 << OUT_GPIO_PIN);
-		print("Out val for < 30 : %x \n", out_val);
-
-		out_val = lev1 & (1 << OUT_GPIO_PIN);
-		print("Out val for >= 30: %x \n", out_val);
+		prev_state = checkOnOff();
 		
 		int counter = 0;
 		while(state == 1) {
-			if(OUT_GPIO_PIN < 30)		out_val = lev0 & (1 << OUT_GPIO_PIN);
-			else						out_val = lev1 & (1 << OUT_GPIO_PIN);
-		
-			if(out_val == 0)		gpioout(LED_GPIO_PIN, 0);
-			else 				gpioout(LED_GPIO_PIN, 1);
+			//if(OUT_GPIO_PIN < 30)			out_val = lev0 & (1 << OUT_GPIO_PIN);
+			//else						out_val = lev1 & (1 << OUT_GPIO_PIN);
 
-			print("Current out_val : %x \n", out_val);
+			curr_state = checkOnOff();
+
+			if(prev_state != curr_state) 	touch_count++;
+			
+			switch(touch_count % 3) {
+			case 0:
+				gpioout(LED_GPIO_PIN, 0);
+				break;
+			
+			case 1:
+				gpioout(LED_GPIO_PIN, 1);
+				break;
+
+			case 2: 
+				gpioout(LED_GPIO_PIN, 1);
+				tsleep(&up->sleep, return0, 0, 250);
+				gpioout(LED_GPIO_PIN, 0);
+				tsleep(&up->sleep, return0, 0, 250);
+				break;
+			}
+
+			counter++;
+			prev_state = curr_state;
 		}
 		
 		break;
