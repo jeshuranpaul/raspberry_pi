@@ -36,56 +36,62 @@ static Cmdtab ledcmd[] = {
 	{CMDhelp, "help", 1}
 };
 
-int state = 0;
+int state = 0, touch_count = 0;
 static long ledread(Chan*, void*, long, vlong);
 static long ledwrite(Chan*, void*, long, vlong);
+static int checkOnOff(int);
+
 static int funcs[] = {Output};
 
 void ledlink(void) {
 	addarchfile("led", 0666, ledread, ledwrite);
 }
 
-static long ledread(Chan* c, void* buf, long n, vlong v) {
-	//same code as gpioread
-	char lbuf[20];
-	char *e;
+static long ledread(Chan*, void* lbuf, long n, vlong) {
+	char buff[35];
+	switch(state) {
+	case 0:
+		strcpy(buff, "Mode: off \t Sensing: off \n");
+		break;
 
-	USED(c);
-	e = lbuf + sizeof(lbuf);
-	seprint(lbuf, e, "%08ulx%08ulx", ((ulong *)GPLEV)[1], ((ulong *)GPLEV)[0]);
-	return readstr(0, buf, n, lbuf);
+	case 1: 	//sensing on
+		switch(touch_count % 3) {
+		case 0:
+			strcpy(buff, "Mode: off \t ");
+			break;
+		case 1: 
+			strcpy(buff, "Mode: on \t ");
+			break;
+		case 2:
+			strcpy(buff, "Mode: blink \t ");
+			break;
+		}	
+		strcat(buff, "Sensing: on \n");
+		break;
 
-}
+	case 2: 	//on mode
+		strcpy(buff, "Mode: on \t Sensing: off \n");
+		break;
 
-static int checkOnOff(int doprint) {
-	char buf1[16], buf2[16];
-	char *e, *f;
-	e = buf1 + sizeof(buf1);
-	f = buf2 + sizeof(buf2);
+	case 3:	//off mode
+		strcpy(buff, "Mode: off \t Sensing: off \n");
+		break;
 
-	seprint(buf1, e, "%08ulx", ((ulong *)GPLEV)[0]);
-	seprint(buf2, f, "%08ulx", ((ulong *)GPLEV)[1]);
-	
-	if(doprint == 1) {
-		print("Reg vals: %s%s \n", buf2, buf1);
+	case 4: 	//blink mode
+		strcpy(buff, "Mode: blink \t Sensing: off \n");
+		break;
 	}
-	vlong value, out_val;
-	
-	if(OUT_GPIO_PIN < 31) 		value = strtoull(buf1, nil, 16);
-	else 						value = strtoull(buf2, nil, 16);
 
- 	out_val = value & (1 << OUT_GPIO_PIN);
-	
-	if(out_val == 0) return 0;
-	else			return 1;
+	return readstr(0, lbuf, n, buff);
 }
 
-static long ledwrite(Chan *c, void *buff, long n, vlong v) {
+
+static long ledwrite(Chan *, void *buff, long n, vlong) {
 	//similar to gpiowrite
 
 	Cmdbuf *cb;
 	Cmdtab *ct;
-	int prev_state, curr_state, touch_count = 0;
+	int prev_state, curr_state;
 	cb = parsecmd(buff, n);
 	if(waserror()) {
 		free(cb);
@@ -107,7 +113,7 @@ static long ledwrite(Chan *c, void *buff, long n, vlong v) {
 		while(state == 1) {
 			curr_state = checkOnOff(0);
 
-			if(prev_state != curr_state) 	{
+			if(prev_state != curr_state) {
 				touch_count++;
 				prev_state = curr_state;
 				checkOnOff(1);	//for printing reg values
@@ -135,28 +141,28 @@ static long ledwrite(Chan *c, void *buff, long n, vlong v) {
 	
 	case CMDstop:
 		print("stop -> Touch sensing has been stopped \n");
-		state = 0;
+		state = 3;
 		gpioout(LED_GPIO_PIN, 0);
 		break;
 
 	case CMDon:
 		print("on -> LED switched on \n");
 
-		state = 0;
+		state = 2;
 		gpioout(LED_GPIO_PIN, 1);
 		break;
 	
 	case CMDoff:
 		print("off -> LED switched off \n");
-		state = 0;
+		state = 3;
 		gpioout(LED_GPIO_PIN, 0);
 		break;
 
 	case CMDblink:
 		print("blink -> LED is blinking \n");
-		state = 2;
+		state = 4;
 
-		while(state == 2) {
+		while(state == 4) {
 			gpioout(LED_GPIO_PIN, 1);
 			tsleep(&up->sleep, return0, 0, 250);
 			gpioout(LED_GPIO_PIN, 0);
@@ -174,3 +180,25 @@ static long ledwrite(Chan *c, void *buff, long n, vlong v) {
 	return n;
 }
 
+static int checkOnOff(int doprint) {
+	char buf1[16], buf2[16];
+	char *e, *f;
+	e = buf1 + sizeof(buf1);
+	f = buf2 + sizeof(buf2);
+
+	seprint(buf1, e, "%08ulx", ((ulong *)GPLEV)[0]);
+	seprint(buf2, f, "%08ulx", ((ulong *)GPLEV)[1]);
+	
+	if(doprint == 1) {
+		print("Reg vals: %s%s \n", buf2, buf1);
+	}
+	vlong value, out_val;
+	
+	if(OUT_GPIO_PIN < 31) 		value = strtoull(buf1, nil, 16);
+	else 						value = strtoull(buf2, nil, 16);
+
+ 	out_val = value & (1 << OUT_GPIO_PIN);
+	
+	if(out_val == 0) return 0;
+	else			return 1;
+}
