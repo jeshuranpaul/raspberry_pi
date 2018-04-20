@@ -6,8 +6,6 @@
 #include	"../port/error.h"
 #include "io.h"
 
-#define GPIOREGS (VIRTIO+0x200000)
-
 enum {
 	// GPIO registers
 	GPLEV = 0x7e200034
@@ -25,7 +23,8 @@ enum {
 	CMDstop,
 	CMDon,
 	CMDoff,
-	CMDblink
+	CMDblink,
+	CMDhelp
 };
 
 static Cmdtab ledcmd[] = {
@@ -33,7 +32,8 @@ static Cmdtab ledcmd[] = {
 	{CMDstop, "stop", 1},
 	{CMDon, "on", 1},
 	{CMDoff, "off", 1},
-	{CMDblink, "blink", 1}
+	{CMDblink, "blink", 1},
+	{CMDhelp, "help", 1}
 };
 
 int state = 0;
@@ -46,7 +46,7 @@ void ledlink(void) {
 }
 
 static long ledread(Chan* c, void* buf, long n, vlong v) {
-
+	//same code as gpioread
 	char lbuf[20];
 	char *e;
 
@@ -57,14 +57,23 @@ static long ledread(Chan* c, void* buf, long n, vlong v) {
 
 }
 
-static int checkOnOff(void) {
-	char lbuf[20];
-	char *e;
-	e = lbuf + sizeof(lbuf);
-	seprint(lbuf, e, "%08ulx%08ulx", ((ulong *)GPLEV)[1], ((ulong *)GPLEV)[0]);
-			
+static int checkOnOff(int doprint) {
+	char buf1[16], buf2[16];
+	char *e, *f;
+	e = buf1 + sizeof(buf1);
+	f = buf2 + sizeof(buf2);
+
+	seprint(buf1, e, "%08ulx", ((ulong *)GPLEV)[0]);
+	seprint(buf2, f, "%08ulx", ((ulong *)GPLEV)[1]);
+	
+	if(doprint == 1) {
+		print("Reg vals: %s%s \n", buf2, buf1);
+	}
 	vlong value, out_val;
-	value = strtoull(lbuf, nil, 16);
+	
+	if(OUT_GPIO_PIN < 31) 		value = strtoull(buf1, nil, 16);
+	else 						value = strtoull(buf2, nil, 16);
+
  	out_val = value & (1 << OUT_GPIO_PIN);
 	
 	if(out_val == 0) return 0;
@@ -72,6 +81,8 @@ static int checkOnOff(void) {
 }
 
 static long ledwrite(Chan *c, void *buff, long n, vlong v) {
+	//similar to gpiowrite
+
 	Cmdbuf *cb;
 	Cmdtab *ct;
 	int prev_state, curr_state, touch_count = 0;
@@ -87,23 +98,20 @@ static long ledwrite(Chan *c, void *buff, long n, vlong v) {
 
 	switch(ct->index) {
 	case CMDstart:
-		print("started \n");
+		print("start -> Touch sensor to change modes \n");
 		state = 1;
 		gpioout(LED_GPIO_PIN, 0);
 
-		//out_val = lev1 & (1 << OUT_GPIO_PIN);
-		//print("Out val for >= 30: %x \n", out_val);
-
-		prev_state = checkOnOff();
+		prev_state = checkOnOff(0);
 		
-		int counter = 0;
 		while(state == 1) {
-			//if(OUT_GPIO_PIN < 30)			out_val = lev0 & (1 << OUT_GPIO_PIN);
-			//else						out_val = lev1 & (1 << OUT_GPIO_PIN);
+			curr_state = checkOnOff(0);
 
-			curr_state = checkOnOff();
-
-			if(prev_state != curr_state) 	touch_count++;
+			if(prev_state != curr_state) 	{
+				touch_count++;
+				prev_state = curr_state;
+				checkOnOff(1);	//for printing reg values
+			}
 			
 			switch(touch_count % 3) {
 			case 0:
@@ -121,34 +129,31 @@ static long ledwrite(Chan *c, void *buff, long n, vlong v) {
 				tsleep(&up->sleep, return0, 0, 250);
 				break;
 			}
-
-			counter++;
-			prev_state = curr_state;
 		}
 		
 		break;
 	
 	case CMDstop:
-		print("stopped \n");
+		print("stop -> Touch sensing has been stopped \n");
 		state = 0;
 		gpioout(LED_GPIO_PIN, 0);
 		break;
 
 	case CMDon:
-		print("switched on \n");
+		print("on -> LED switched on \n");
 
 		state = 0;
 		gpioout(LED_GPIO_PIN, 1);
 		break;
 	
 	case CMDoff:
-		print("switched off \n");
+		print("off -> LED switched off \n");
 		state = 0;
 		gpioout(LED_GPIO_PIN, 0);
 		break;
 
 	case CMDblink:
-		print("blinking \n");
+		print("blink -> LED is blinking \n");
 		state = 2;
 
 		while(state == 2) {
@@ -159,6 +164,10 @@ static long ledwrite(Chan *c, void *buff, long n, vlong v) {
 		}
 			
 		break;
+	
+	case CMDhelp: 
+		print("Valid commands are: \n start \t stop \t on \t off \t blink \n");
+		print("Usage: \n echo [command] > /dev/led \n");
 	}
 	free(cb);
 	poperror();
