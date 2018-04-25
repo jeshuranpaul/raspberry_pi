@@ -36,7 +36,7 @@ static Cmdtab ledcmd[] = {
 	{CMDhelp, "help", 1}
 };
 
-int state = 0, touch_count = 0;
+static int state = 0, touch_count = 0;
 static long ledread(Chan*, void*, long, vlong);
 static long ledwrite(Chan*, void*, long, vlong);
 static int checkOnOff(int);
@@ -140,28 +140,30 @@ static long ledwrite(Chan *, void *buff, long n, vlong) {
 		break;
 	
 	case CMDstop:
-		print("stop -> Touch sensing has been stopped \n");
+		print("stop -> Touch sensing has been stopped now\n");
 		state = 3;
+		touch_count = 0;
 		gpioout(LED_GPIO_PIN, 0);
 		break;
 
 	case CMDon:
 		print("on -> LED switched on \n");
-
 		state = 2;
+		touch_count = 0;
 		gpioout(LED_GPIO_PIN, 1);
 		break;
 	
 	case CMDoff:
 		print("off -> LED switched off \n");
 		state = 3;
+		touch_count = 0;
 		gpioout(LED_GPIO_PIN, 0);
 		break;
 
 	case CMDblink:
 		print("blink -> LED is blinking \n");
 		state = 4;
-
+		touch_count = 0;
 		while(state == 4) {
 			gpioout(LED_GPIO_PIN, 1);
 			tsleep(&up->sleep, return0, 0, 250);
