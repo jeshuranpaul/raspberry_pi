@@ -1,9 +1,9 @@
-#include	"u.h"
-#include	"../port/lib.h"
-#include	"mem.h"
-#include	"dat.h"
-#include	"fns.h"
-#include	"../port/error.h"
+#include "u.h"
+#include "../port/lib.h"
+#include "mem.h"
+#include "dat.h"
+#include "fns.h"
+#include "../port/error.h"
 #include "io.h"
 
 enum {
@@ -40,6 +40,7 @@ static int state = 0, touch_count = 0;
 static long ledread(Chan*, void*, long, vlong);
 static long ledwrite(Chan*, void*, long, vlong);
 static int checkOnOff(int);
+static void kprocHandler(void *);
 
 static int funcs[] = {Output};
 
@@ -47,7 +48,7 @@ void ledlink(void) {
 	addarchfile("led", 0666, ledread, ledwrite);
 }
 
-static long ledread(Chan*, void* lbuf, long n, vlong) {
+static long ledread(Chan*, void*, long, vlong) {
 	char buff[35];
 	switch(state) {
 	case 0:
@@ -81,17 +82,18 @@ static long ledread(Chan*, void* lbuf, long n, vlong) {
 		strcpy(buff, "Mode: blink \t Sensing: off \n");
 		break;
 	}
-
-	return readstr(0, lbuf, n, buff);
+	
+	//return readstr(0, lbuf, n, buff);
+	print("%s\n", buff);
+	return 0;
 }
-
 
 static long ledwrite(Chan *, void *buff, long n, vlong) {
 	//similar to gpiowrite
 
 	Cmdbuf *cb;
 	Cmdtab *ct;
-	int prev_state, curr_state;
+	
 	cb = parsecmd(buff, n);
 	if(waserror()) {
 		free(cb);
@@ -107,36 +109,7 @@ static long ledwrite(Chan *, void *buff, long n, vlong) {
 		print("start -> Touch sensor to change modes \n");
 		state = 1;
 		gpioout(LED_GPIO_PIN, 0);
-
-		prev_state = checkOnOff(0);
-		
-		while(state == 1) {
-			curr_state = checkOnOff(0);
-
-			if(prev_state != curr_state) {
-				touch_count++;
-				prev_state = curr_state;
-				checkOnOff(1);	//for printing reg values
-			}
-			
-			switch(touch_count % 3) {
-			case 0:
-				gpioout(LED_GPIO_PIN, 0);
-				break;
-			
-			case 1:
-				gpioout(LED_GPIO_PIN, 1);
-				break;
-
-			case 2: 
-				gpioout(LED_GPIO_PIN, 1);
-				tsleep(&up->sleep, return0, 0, 250);
-				gpioout(LED_GPIO_PIN, 0);
-				tsleep(&up->sleep, return0, 0, 250);
-				break;
-			}
-		}
-		
+		kproc("led", kprocHandler, nil);
 		break;
 	
 	case CMDstop:
@@ -164,13 +137,7 @@ static long ledwrite(Chan *, void *buff, long n, vlong) {
 		print("blink -> LED is blinking \n");
 		state = 4;
 		touch_count = 0;
-		while(state == 4) {
-			gpioout(LED_GPIO_PIN, 1);
-			tsleep(&up->sleep, return0, 0, 250);
-			gpioout(LED_GPIO_PIN, 0);
-			tsleep(&up->sleep, return0, 0, 250);
-		}
-			
+		kproc("led", kprocHandler, nil);
 		break;
 	
 	case CMDhelp: 
@@ -201,6 +168,55 @@ static int checkOnOff(int doprint) {
 
  	out_val = value & (1 << OUT_GPIO_PIN);
 	
-	if(out_val == 0) return 0;
-	else			return 1;
+	if(out_val == 0) 	return 0;
+	else				return 1;
+}
+
+static void kprocHandler(void *) {
+	int prev_state, curr_state;
+
+	prev_state = checkOnOff(0);
+
+	if(state == 1) {
+		while(state == 1) {
+			curr_state = checkOnOff(0);
+
+			if(prev_state != curr_state) {
+				touch_count++;
+				prev_state = curr_state;
+				checkOnOff(1);	//for printing reg values
+			}
+			
+			switch(touch_count % 3) {
+			case 0:
+				gpioout(LED_GPIO_PIN, 0);
+				break;
+		
+			case 1:
+				gpioout(LED_GPIO_PIN, 1);
+				break;
+
+			case 2: 
+				gpioout(LED_GPIO_PIN, 1);
+				tsleep(&up->sleep, return0, 0, 250);
+				gpioout(LED_GPIO_PIN, 0);
+				tsleep(&up->sleep, return0, 0, 250);
+				break;
+			}
+		}
+		//had to do this, because state could change between sleeps
+		if(state == 2) gpioout(LED_GPIO_PIN, 1);
+	}
+	
+	else if(state == 4) {
+		while(state == 4) {
+			gpioout(LED_GPIO_PIN, 1);
+			tsleep(&up->sleep, return0, 0, 250);
+			gpioout(LED_GPIO_PIN, 0);
+			tsleep(&up->sleep, return0, 0, 250);
+		}
+		
+		//had to do this, because state could change between sleeps
+		if(state == 2) gpioout(LED_GPIO_PIN, 1);
+	}
 }
