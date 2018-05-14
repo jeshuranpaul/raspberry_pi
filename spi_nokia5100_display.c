@@ -24,8 +24,7 @@ void drawRectangle(int, int, int, int);
 
 void main() {
 	int x1 = 0, x2 = 47, y1 = 0, y2 = 83;
-	int temp;
-
+	
 	_init();
 
 	resetDevice();
@@ -124,7 +123,7 @@ void swap(int *a, int *b) {
 void drawRectangle(int row1, int col1, int row2, int col2) {
 
 	uchar hor_helper[] = 	{0xFF, 0xFE, 0xFC, 0xF8, 0xF0, 0xE0, 0xC0, 0x80},
-	ver_helper[] = 			{0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF};
+	ver_helper[] = 				{0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF};
 
 	if(row1 > 47 || row2 > 47 || col1 > 83 || col2 > 83)  {
 		print("Row/column indexes out of bounds \n");
@@ -136,7 +135,7 @@ void drawRectangle(int row1, int col1, int row2, int col2) {
 		if(col1 > col2) 		swap(&col1, &col2);
 		
 		int bank1 		= row1/8, 
-		bank2 		= row2/8,
+		bank2 				= row2/8,
 		active_bit1 	= row1 % 8,
 		active_bit2 	= row2 % 8;
 
