@@ -18,6 +18,7 @@ void clearDisplay(void);
 void setXY(int, int);
 void writeData(uchar);
 void writeCmd(uchar);
+void swap(int*, int*);
 void drawRectangle(int, int, int, int);
 
 
@@ -113,31 +114,33 @@ void _init(void) {
 	
 }
 
-void drawRectangle(int row1, int col1, int row2, int col2) {
+void swap(int *a, int *b) {
 	int temp;
+	temp = *a;
+	*a = *b;
+	*b = temp;
+}
+
+void drawRectangle(int row1, int col1, int row2, int col2) {
+
+	uchar hor_helper[] = 	{0xFF, 0xFE, 0xFC, 0xF8, 0xF0, 0xE0, 0xC0, 0x80},
+	ver_helper[] = 			{0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF};
+
 	if(row1 > 47 || row2 > 47 || col1 > 83 || col2 > 83)  {
 		print("Row/column indexes out of bounds \n");
 		return;
 	}
-	else {
-		if(row1 > row2) {
-			temp = row1;
-			row1 = row2;
-			row2 = temp;
-		}
-	
-		if(col1 > col2) {
-			temp = col1;
-			col1 = col2;
-			col2 = temp;
-		}
-		
-		int bank1 = row1/8, bank2 = row2/8;
-		int active_bit1 = row1 % 8,
-		active_bit2 = row2 % 8;
 
-		uchar hor_helper[] = {0xFF, 0xFE, 0xFC, 0xF8, 0xF0, 0xE0, 0xC0, 0x80};
-		uchar ver_helper[] = {0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF};
+	else {
+		if(row1 > row2) 	swap(&row1, &row2);
+		if(col1 > col2) 		swap(&col1, &col2);
+		
+		int bank1 		= row1/8, 
+		bank2 		= row2/8,
+		active_bit1 	= row1 % 8,
+		active_bit2 	= row2 % 8;
+
+		
 
 		uchar val1 = 0 | 1 << active_bit1, 
 		val2 = 0 | 1 <<  active_bit2;
@@ -152,12 +155,14 @@ void drawRectangle(int row1, int col1, int row2, int col2) {
 		//setting appropriate top corner pixels
 		setXY(bank1, col1);
 		writeData(0xFF & hor_helper[active_bit1]);
+
 		setXY(bank1, col2);
 		writeData(0xFF & hor_helper[active_bit1]);
 		
 		//setting appropriate bottom corner pixels
 		setXY(bank2, col1);
 		writeData(0 | ver_helper[active_bit2]);
+
 		setXY(bank2, col2);
 		writeData(0 | ver_helper[active_bit2]);
 		
@@ -168,8 +173,6 @@ void drawRectangle(int row1, int col1, int row2, int col2) {
 			setXY(i, col2);
 			writeData(0xFF);
 		}
-
 	}
-	
 	return;
 }
