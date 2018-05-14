@@ -132,10 +132,10 @@ void drawRectangle(int row1, int col1, int row2, int col2) {
 
 	else {
 		if(row1 > row2) 	swap(&row1, &row2);
-		if(col1 > col2) 		swap(&col1, &col2);
+		if(col1 > col2) 	swap(&col1, &col2);
 		
-		int bank1 		= row1/8, 
-		bank2 				= row2/8,
+		int bank1 	= row1/8, 
+		bank2 		= row2/8,
 		active_bit1 	= row1 % 8,
 		active_bit2 	= row2 % 8;
 
